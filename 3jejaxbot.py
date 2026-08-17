@@ -22,7 +22,7 @@ TOKEN = os.getenv("TOKEN")
 if not TOKEN:
     raise ValueError("❌ TOKEN not found in environment variables!")
 
-# ====== إنشاء البوت ======
+# ====== إنشاء البوت مع إعدادات الصوت ======
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
@@ -87,7 +87,7 @@ def create_progress_bar(current, total, length=20):
     
     return f"`{bar}` `{current_str} / {total_str}`"
 
-# ====== كلاس الصوت (باستخدام pytube) ======
+# ====== كلاس الصوت ======
 class YTDLSource(discord.PCMVolumeTransformer):
     def __init__(self, source, *, data, volume=0.5):
         super().__init__(source, volume)
@@ -152,7 +152,6 @@ async def play_next(guild_id):
             return
     
     try:
-        # تأخير 1 ثانية قبل التشغيل
         await asyncio.sleep(1)
         
         player = await YTDLSource.from_url(song.url, loop=bot.loop, stream=True)
@@ -264,12 +263,11 @@ async def slash_play(interaction: discord.Interaction, input: str):
     voice_channel = interaction.user.voice.channel
     voice_client = interaction.guild.voice_client
     
-    # تأخير 1 ثانية قبل الاتصال بالصوت
-    await asyncio.sleep(1)
+    await asyncio.sleep(2)
     
     try:
         if not voice_client:
-            voice_client = await voice_channel.connect()
+            voice_client = await voice_channel.connect(timeout=10.0, reconnect=True)
         elif voice_client.channel != voice_channel:
             await voice_client.move_to(voice_channel)
     except Exception as e:
@@ -430,7 +428,7 @@ async def slash_volume(interaction: discord.Interaction, volume: int):
     else:
         await interaction.response.send_message("❌ Volume must be between 0 and 100!")
 
-# ====== خادم ويب لـ Keep Alive ======
+# ====== خادم ويب ======
 app = Flask(__name__)
 
 @app.route('/')
