@@ -15,7 +15,7 @@ from pytube import YouTube
 if platform.system() == "Windows":
     FFMPEG_PATH = r"C:\ffmpeg-9.0.1-full_build\bin\ffmpeg.exe"
 else:
-    FFMPEG_PATH = "./ffmpeg-linux"  # أو "ffmpeg" إذا كان مثبتاً في النظام
+    FFMPEG_PATH = "./ffmpeg-linux"
 
 # ====== التوكن من متغيرات البيئة ======
 TOKEN = os.getenv("TOKEN")
@@ -105,7 +105,6 @@ class YTDLSource(discord.PCMVolumeTransformer):
         print(f"🔍 Cleaned URL: {url}")
         
         try:
-            # استخدام pytube بدل yt-dlp
             yt = YouTube(url)
             audio_stream = yt.streams.filter(only_audio=True).first()
             
@@ -153,6 +152,9 @@ async def play_next(guild_id):
             return
     
     try:
+        # تأخير 1 ثانية قبل التشغيل
+        await asyncio.sleep(1)
+        
         player = await YTDLSource.from_url(song.url, loop=bot.loop, stream=True)
         player.requester = song.requester
         player.volume = current_volume.get(guild_id, 50) / 100
@@ -262,10 +264,17 @@ async def slash_play(interaction: discord.Interaction, input: str):
     voice_channel = interaction.user.voice.channel
     voice_client = interaction.guild.voice_client
     
-    if not voice_client:
-        voice_client = await voice_channel.connect()
-    elif voice_client.channel != voice_channel:
-        await voice_client.move_to(voice_channel)
+    # تأخير 1 ثانية قبل الاتصال بالصوت
+    await asyncio.sleep(1)
+    
+    try:
+        if not voice_client:
+            voice_client = await voice_channel.connect()
+        elif voice_client.channel != voice_channel:
+            await voice_client.move_to(voice_channel)
+    except Exception as e:
+        await interaction.followup.send(f"❌ Voice connection error: {str(e)[:100]}")
+        return
     
     guild_id = interaction.guild.id
     if guild_id not in queues:
