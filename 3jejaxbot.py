@@ -6,20 +6,21 @@ import time
 import re
 import urllib.parse
 import os
+import platform
 from flask import Flask
 import threading
 from pytube import YouTube
 
-# ====== إعدادات asyncio ======
-asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())
+# ====== تحديد مسار FFmpeg حسب النظام ======
+if platform.system() == "Windows":
+    FFMPEG_PATH = r"C:\ffmpeg-9.0.1-full_build\bin\ffmpeg.exe"
+else:
+    FFMPEG_PATH = "./ffmpeg-linux"  # أو "ffmpeg" إذا كان مثبتاً في النظام
 
 # ====== التوكن من متغيرات البيئة ======
 TOKEN = os.getenv("TOKEN")
 if not TOKEN:
     raise ValueError("❌ TOKEN not found in environment variables!")
-
-# ====== مسار FFmpeg ======
-FFMPEG_PATH = os.getenv("FFMPEG_PATH", "ffmpeg")
 
 # ====== إنشاء البوت ======
 intents = discord.Intents.default()
