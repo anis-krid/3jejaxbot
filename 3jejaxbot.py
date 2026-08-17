@@ -1,6 +1,5 @@
 import discord
 from discord.ext import commands
-import yt_dlp
 import asyncio
 from collections import deque
 import time
@@ -9,6 +8,10 @@ import urllib.parse
 import os
 from flask import Flask
 import threading
+from pytube import YouTube
+
+# ====== إعدادات asyncio ======
+asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())
 
 # ====== التوكن من متغيرات البيئة ======
 TOKEN = os.getenv("TOKEN")
@@ -30,26 +33,7 @@ loop_mode = {}
 current_volume = {}
 start_time = {}
 
-# ====== إعدادات yt-dlp ======
-YDL_OPTIONS = {
-    'format': 'bestaudio/best',
-    'quiet': True,
-    'no_warnings': True,
-    'default_search': 'auto',
-    'source_address': '0.0.0.0',
-    'extract_flat': False,
-    'ignoreerrors': True,
-    'geo_bypass': True,
-    'cookiefile': None,
-    'nocheckcertificate': True,
-    'prefer_ffmpeg': True,
-    'postprocessors': [{
-        'key': 'FFmpegExtractAudio',
-        'preferredcodec': 'mp3',
-        'preferredquality': '192',
-    }],
-}
-
+# ====== إعدادات FFmpeg ======
 FFMPEG_OPTIONS = {
     'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
     'options': '-vn -loglevel quiet',
@@ -102,7 +86,7 @@ def create_progress_bar(current, total, length=20):
     
     return f"`{bar}` `{current_str} / {total_str}`"
 
-# ====== كلاس الصوت ======
+# ====== كلاس الصوت (باستخدام pytube) ======
 class YTDLSource(discord.PCMVolumeTransformer):
     def __init__(self, source, *, data, volume=0.5):
         super().__init__(source, volume)
@@ -120,48 +104,33 @@ class YTDLSource(discord.PCMVolumeTransformer):
         print(f"🔍 Cleaned URL: {url}")
         
         try:
-            with yt_dlp.YoutubeDL(YDL_OPTIONS) as ydl:
-                info = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=False))
-                
-                if info is None:
-                    raise Exception("No data found")
-                
-                if 'entries' in info:
-                    info = info['entries'][0]
-                    if info is None:
-                        raise Exception("No data found in playlist")
-                
-                title = info.get('title', 'Unknown Title')
-                audio_url = info.get('url')
-                
-                if not audio_url:
-                    formats = info.get('formats', [])
-                    for f in formats:
-                        if f.get('acodec') != 'none' and f.get('vcodec') == 'none':
-                            audio_url = f.get('url')
-                            break
-                    
-                    if not audio_url:
-                        raise Exception("Could not extract audio URL")
-                
-                duration = info.get('duration')
-                thumbnail = info.get('thumbnail')
-                
-                print(f"🎵 Title: {title}")
-                print(f"⏱️ Duration: {duration} seconds")
-                
-                source = discord.FFmpegPCMAudio(audio_url, executable=FFMPEG_PATH, **FFMPEG_OPTIONS)
-                
-                data = {
-                    'title': title,
-                    'webpage_url': url,
-                    'url': audio_url,
-                    'duration': duration,
-                    'thumbnail': thumbnail
-                }
-                
-                return cls(source, data=data)
-                
+            # استخدام pytube بدل yt-dlp
+            yt = YouTube(url)
+            audio_stream = yt.streams.filter(only_audio=True).first()
+            
+            if not audio_stream:
+                raise Exception("No audio stream found")
+            
+            audio_url = audio_stream.url
+            title = yt.title
+            duration = yt.length
+            thumbnail = yt.thumbnail_url
+            
+            print(f"🎵 Title: {title}")
+            print(f"⏱️ Duration: {duration} seconds")
+            
+            source = discord.FFmpegPCMAudio(audio_url, executable=FFMPEG_PATH, **FFMPEG_OPTIONS)
+            
+            data = {
+                'title': title,
+                'webpage_url': url,
+                'url': audio_url,
+                'duration': duration,
+                'thumbnail': thumbnail
+            }
+            
+            return cls(source, data=data)
+            
         except Exception as e:
             print(f"❌ Error extracting info: {e}")
             raise
@@ -476,10 +445,7 @@ async def on_ready():
         print(f"❌ Error syncing commands: {e}")
 
 if __name__ == "__main__":
-    # تشغيل خادم الويب
     keep_alive()
-    
-    # تشغيل البوت
     try:
         bot.run(TOKEN)
     except KeyboardInterrupt:
